@@ -198,8 +198,9 @@ select option{background:var(--bg3)}
 .fn-cat-pill .cat-icon{font-size:1.1rem}
 .rand-btn{font-size:1.05rem;padding:14px 34px;border-radius:var(--rl);background:linear-gradient(135deg,rgba(0,212,255,.22),rgba(155,48,255,.2));border:1px solid rgba(0,212,255,.4);color:#fff;font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:.08em;cursor:pointer;transition:.25s;display:flex;align-items:center;gap:10px}
 .rand-btn:hover{box-shadow:0 8px 30px rgba(0,212,255,.25)}
-@keyframes spinBounce{0%{transform:scale(1) rotate(0)}40%{transform:scale(1.15) rotate(180deg)}100%{transform:scale(1) rotate(360deg)}}
-.rand-btn.spinning{animation:spinBounce .6s ease}
+/* Animation minimale : léger pulse, sans rotation */
+@keyframes spinBounce{0%{transform:scale(1);opacity:1}50%{transform:scale(.95);opacity:.65}100%{transform:scale(1);opacity:1}}
+.rand-btn.spinning{animation:spinBounce .4s ease}
 .rand-results{margin-top:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px}
 .rand-result-card{background:var(--bg2);border:1px solid var(--border2);border-radius:var(--rx);overflow:hidden;position:relative;transition:.25s}
 .rand-result-card[data-rarity=Mythic]{border-color:rgba(255,215,0,.3);box-shadow:0 0 20px rgba(255,215,0,.08)}
