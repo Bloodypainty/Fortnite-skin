@@ -501,6 +501,7 @@ function renderFN() {
         <span class="count-badge">${total} items</span>
         <button class="btn btn-ghost btn-sm" onclick="fnSortAlpha('asc')" title="Trier A→Z">🔤 A→Z</button>
         <button class="btn btn-ghost btn-sm" onclick="fnSortAlpha('desc')" title="Trier Z→A">🔤 Z→A</button>
+        <button class="btn btn-ghost btn-sm" onclick="fnSortRecent()" title="Dernier ajout en premier">🕒 Dernier ajout</button>
         <button class="btn btn-ghost btn-sm" onclick="toggleSelectMode('fortnite',{cat:_fnCat})">☑ Sélectionner</button>
       </div>
     </div>
@@ -528,6 +529,19 @@ function fnSortAlpha(dir) {
   db.items[_fnCat].sort((a,b)=> dir==='asc' ? a.name.localeCompare(b.name,'fr') : b.name.localeCompare(a.name,'fr'));
   saveData(db);
   showToast('Trié par ordre alphabétique ✓');
+  document.getElementById('fn-grid').innerHTML = renderFnGrid(_fnCat, db.items);
+}
+function idTimestamp(id) {
+  const parts = String(id).split('_');
+  const ts = parseInt(parts[1]);
+  return isNaN(ts) ? 0 : ts;
+}
+function fnSortRecent() {
+  const db = loadData();
+  if(!db.items[_fnCat]) return;
+  db.items[_fnCat].sort((a,b)=> idTimestamp(b.id) - idTimestamp(a.id));
+  saveData(db);
+  showToast('Trié par dernier ajout ✓');
   document.getElementById('fn-grid').innerHTML = renderFnGrid(_fnCat, db.items);
 }
 function renderFnGrid(cat, items) {
