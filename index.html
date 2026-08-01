@@ -499,6 +499,8 @@ function renderFN() {
     <div class="page-header fn-page"><div class="page-title fn-accent">MA COLLECTION</div>
       <div style="display:flex;gap:8px;align-items:center">
         <span class="count-badge">${total} items</span>
+        <button class="btn btn-ghost btn-sm" onclick="fnSortAlpha('asc')" title="Trier A→Z">🔤 A→Z</button>
+        <button class="btn btn-ghost btn-sm" onclick="fnSortAlpha('desc')" title="Trier Z→A">🔤 Z→A</button>
         <button class="btn btn-ghost btn-sm" onclick="toggleSelectMode('fortnite',{cat:_fnCat})">☑ Sélectionner</button>
       </div>
     </div>
@@ -519,6 +521,14 @@ function fnSwitchCat(btn, cat) {
   _exitSelectMode(true);
   document.querySelectorAll('#fn-cat-tabs .tab').forEach(t=>t.classList.toggle('active',t.dataset.cat===cat));
   document.getElementById('fn-grid').innerHTML = renderFnGrid(cat, loadData().items||{});
+}
+function fnSortAlpha(dir) {
+  const db = loadData();
+  if(!db.items[_fnCat]) return;
+  db.items[_fnCat].sort((a,b)=> dir==='asc' ? a.name.localeCompare(b.name,'fr') : b.name.localeCompare(a.name,'fr'));
+  saveData(db);
+  showToast('Trié par ordre alphabétique ✓');
+  document.getElementById('fn-grid').innerHTML = renderFnGrid(_fnCat, db.items);
 }
 function renderFnGrid(cat, items) {
   const list=items[cat]||[];
