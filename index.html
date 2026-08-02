@@ -417,6 +417,14 @@ function previewUrl(inputId, previewId) {
   if(url) { img.src=url; img.classList.add('show'); } else { img.classList.remove('show'); }
 }
 function rand(arr) { return arr[Math.floor(Math.random()*arr.length)]; }
+// Couleur déterministe par série (même nom = toujours la même couleur)
+const SERIES_PALETTE = ['#ff6b6b','#feca57','#48dbfb','#1dd1a1','#a78bfa','#ff9ff3','#54a0ff','#ff9f43','#00d2d3','#f368e0'];
+function seriesColor(name) {
+  const s = String(name||'');
+  let hash = 0;
+  for(let i=0;i<s.length;i++) hash = (hash*31 + s.charCodeAt(i)) | 0;
+  return SERIES_PALETTE[Math.abs(hash) % SERIES_PALETTE.length];
+}
 // Poids 1-10 : 1 = très rare, 5 = normal, 10 = très fréquent
 function randWeighted(arr) {
   if(!arr || !arr.length) return null;
@@ -556,7 +564,7 @@ function renderFnGrid(cat, items) {
       </div>
       <div class="skin-info">
         <div class="skin-name">${esc(s.name)}</div>
-        <div class="skin-meta"><span class="skin-rarity-label ${esc(s.rarity||'')}">${esc(s.rarity||'')}</span>${s.series?`<span class="skin-series-badge">${esc(s.series)}</span>`:''}</div>
+        <div class="skin-meta"><span class="skin-rarity-label ${esc(s.rarity||'')}">${esc(s.rarity||'')}</span>${s.series?`<span class="skin-series-badge" style="color:${seriesColor(s.series)};border-color:${seriesColor(s.series)}55;background:${seriesColor(s.series)}15">${esc(s.series)}</span>`:''}</div>
         ${cat==='skin'&&s.variants&&s.variants.length?`<div style="font-size:.63rem;color:var(--fn);margin-top:3px">${s.variants.length} variante${s.variants.length>1?'s':''}</div>`:''}
         ${cat==='skin'&&s.forFestival?`<div class="festival-tag">🎸 Festival</div>`:''}
         ${s.weight&&s.weight!==5?`<div class="skin-weight-tag">🎲 ×${s.weight}</div>`:''}
@@ -634,7 +642,7 @@ function fnOpenModal(id) {
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
         ${s.rarity?`<span style="padding:5px 14px;border-radius:20px;font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${rarityColor};border:1px solid ${rarityColor}40;background:rgba(0,0,0,.3)">${esc(s.rarity)}</span>`:''}
-        ${s.series?`<span style="padding:5px 14px;border-radius:20px;font-size:.72rem;font-weight:600;background:rgba(255,255,255,.05);color:var(--text-dim);border:1px solid var(--border2)">🏷 ${esc(s.series)}</span>`:''}
+        ${s.series?`<span style="padding:5px 14px;border-radius:20px;font-size:.72rem;font-weight:600;background:${seriesColor(s.series)}18;color:${seriesColor(s.series)};border:1px solid ${seriesColor(s.series)}55">🏷 ${esc(s.series)}</span>`:''}
         ${s.forFestival?`<span style="padding:5px 14px;border-radius:20px;font-size:.72rem;font-weight:600;background:rgba(255,107,53,.1);color:var(--festival);border:1px solid rgba(255,107,53,.35)">🎸 Festival</span>`:''}
       </div>
       ${variants.length>0?`<div style="font-size:.65rem;letter-spacing:.18em;text-transform:uppercase;color:var(--fn);font-weight:700;margin-bottom:4px">✨ Variantes · ${variants.length} <span style="color:var(--text-muted);font-weight:400;letter-spacing:.05em;text-transform:none;font-size:.7rem">· clique pour agrandir</span></div>`:''}
@@ -956,7 +964,7 @@ function doRandFN(){
         <div class="rand-result-cat">${FN_CATS[cat]?.label||cat}</div>
         <div class="rand-result-name">${esc(item.name)}</div>
         ${item.rarity?`<div class="rand-result-sub" style="color:var(--${item.rarity.toLowerCase()})">${esc(item.rarity)}</div>`:''}
-        ${item.series?`<div class="rand-result-sub">${esc(item.series)}</div>`:''}
+        ${item.series?`<div class="rand-result-sub" style="color:${seriesColor(item.series)}">🏷 ${esc(item.series)}</div>`:''}
         ${item.forFestival?`<div class="rand-result-sub" style="color:var(--festival)">🎸 Festival</div>`:''}
         ${variantSection}
       </div>
