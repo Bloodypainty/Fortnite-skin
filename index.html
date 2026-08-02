@@ -236,7 +236,10 @@ select option{background:var(--bg3)}
 .variant-group-title{font-size:.68rem;letter-spacing:.16em;text-transform:uppercase;color:var(--fn);font-weight:700}
 .variant-group-del{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:.7rem;padding:2px 6px;border-radius:4px}
 .variant-group-del:hover{color:#ff8a8a;background:rgba(220,50,50,.15)}
-.variant-thumbs{display:flex;flex-wrap:wrap;gap:10px}
+.variant-thumbs{display:flex;flex-wrap:wrap;gap:10px;min-height:40px;border-radius:var(--r);transition:.15s;padding:4px}
+.variant-thumbs.drag-over{background:rgba(0,212,255,.08);outline:2px dashed rgba(0,212,255,.5);outline-offset:-2px}
+.vp-thumb-wrap{cursor:grab}
+.vp-thumb-wrap.dragging{opacity:.35}
 .vp-card{background:var(--bg4);border:2px solid var(--border);border-radius:var(--rl);overflow:hidden;transition:.2s;position:relative;width:76px;height:76px;flex-shrink:0}
 .vp-card.owned{border-color:var(--mythic);box-shadow:0 0 0 1px var(--mythic),0 0 12px rgba(255,215,0,.25)}
 .vp-card.locked{opacity:.55}
@@ -648,9 +651,10 @@ function fnOpenModal(id) {
           <span class="variant-group-title">${esc(g.name)} · ${g.variants.length}</span>
           <button class="variant-group-del" data-skin-id="${esc(s.id)}" data-group-id="${esc(g.id)}">🗑 Supprimer le groupe</button>
         </div>
-        <div class="variant-thumbs">
+        <div class="variant-thumbs" data-drop-group="${esc(g.id)}">
+          ${g.variants.length===0?`<div style="font-size:.7rem;color:var(--text-muted);font-style:italic;padding:8px">Glisse une variante ici</div>`:''}
           ${g.variants.map(v=>`
-            <div class="vp-thumb-wrap">
+            <div class="vp-thumb-wrap" draggable="true" data-drag-skin="${esc(s.id)}" data-drag-group="${esc(g.id)}" data-drag-var="${esc(v.id)}" title="Glisse vers un autre groupe">
               <div class="vp-card ${v.owned?'owned':'locked'}" data-img="${esc(v.image||'')}" data-name="${esc(v.name)}">
                 ${v.image?`<img src="${esc(v.image)}" loading="lazy">`:`<div class="vp-noimg">⚡</div>`}
                 ${!v.owned?`<div class="vp-lock">🔒</div>`:''}
@@ -698,7 +702,47 @@ function fnOpenModal(id) {
     document.querySelectorAll('.vp-edit-btn').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); fnEditVariant(btn.dataset.skinId, btn.dataset.groupId, btn.dataset.varId); }));
     document.querySelectorAll('.vp-del-btn').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); fnDeleteVariant(btn.dataset.skinId, btn.dataset.groupId, btn.dataset.varId); }));
     document.querySelectorAll('.variant-group-del').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); fnDeleteVariantGroup(btn.dataset.skinId, btn.dataset.groupId); }));
+
+    // Glisser-déposer une variante d'un groupe à un autre
+    document.querySelectorAll('.vp-thumb-wrap').forEach(wrap => {
+      wrap.addEventListener('dragstart', e => {
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', JSON.stringify({
+          skinId: wrap.dataset.dragSkin, groupId: wrap.dataset.dragGroup, varId: wrap.dataset.dragVar
+        }));
+        wrap.classList.add('dragging');
+      });
+      wrap.addEventListener('dragend', () => wrap.classList.remove('dragging'));
+    });
+    document.querySelectorAll('.variant-thumbs').forEach(zone => {
+      zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+      zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+      zone.addEventListener('drop', e => {
+        e.preventDefault();
+        zone.classList.remove('drag-over');
+        let payload;
+        try { payload = JSON.parse(e.dataTransfer.getData('text/plain')); } catch(err) { return; }
+        const targetGroupId = zone.dataset.dropGroup;
+        if(payload && targetGroupId) fnMoveVariantToGroup(payload.skinId, payload.groupId, payload.varId, targetGroupId);
+      });
+    });
   }, 50);
+}
+function fnMoveVariantToGroup(skinId, fromGroupId, varId, toGroupId) {
+  if(fromGroupId===toGroupId) return;
+  const db = loadData();
+  const skin = (db.items['skin']||[]).find(s=>s.id===skinId);
+  if(!skin) return;
+  const fromGroup = skin.variantGroups.find(g=>g.id===fromGroupId);
+  const toGroup = skin.variantGroups.find(g=>g.id===toGroupId);
+  if(!fromGroup||!toGroup) return;
+  const idx = fromGroup.variants.findIndex(v=>v.id===varId);
+  if(idx===-1) return;
+  const [v] = fromGroup.variants.splice(idx,1);
+  toGroup.variants.push(v);
+  saveData(db);
+  showToast(`Déplacée dans "${toGroup.name}" ✓`);
+  fnOpenModal(skinId);
 }
 function fnToggleVariantOwned(skinId, groupId, varId) {
   const db = loadData();
