@@ -549,7 +549,7 @@ function renderFnGrid(cat, items) {
   if(!list.length) return `<div class="empty-state"><div class="icon">${FN_CATS[cat]?.icon||'🎮'}</div><p>Aucun ${FN_CATS[cat]?.label.toLowerCase()||cat} pour l'instant.<br>Ajoute-en depuis <strong>➕ Ajouter</strong>.</p></div>`;
   return list.map(s=>`
     <div class="skin-card" data-rarity="${esc(s.rarity||'')}" data-name="${esc((s.name||'').toLowerCase())}" data-id="${esc(s.id)}"
-      onclick="fnCardClick(event,this,'${esc(s.id)}','${esc(s.image||'')}','${esc(s.name)}','${cat}')" style="cursor:pointer">
+      onclick="fnCardClick(event,this,'${esc(s.id)}','${cat}')" style="cursor:pointer">
       <div class="rarity-bar ${esc(s.rarity||'')}"></div>
       <div class="skin-img-wrap">
         ${s.image?`<img src="${esc(s.image)}" alt="${esc(s.name)}" loading="lazy" onerror="this.parentNode.innerHTML='<div class=\\'no-img\\'>${FN_CATS[cat]?.icon||'🎮'}</div>'">`:`<div class="no-img">${FN_CATS[cat]?.icon||'🎮'}</div>`}
@@ -567,10 +567,12 @@ function renderFnGrid(cat, items) {
       </div>
     </div>`).join('');
 }
-function fnCardClick(e, card, id, image, name, cat) {
+function fnCardClick(e, card, id, cat) {
   _cardClick(card, ()=>{
-    if(cat==='skin') fnOpenModal(id);
-    else if(image) openLightbox(image, name);
+    if(cat==='skin') { fnOpenModal(id); return; }
+    const db = loadData();
+    const item = (db.items[cat]||[]).find(x=>x.id===id);
+    if(item && item.image) openLightbox(item.image, item.name);
   });
 }
 function fnDeleteItem(cat, id) {
@@ -948,7 +950,7 @@ function doRandFN(){
         </div>
       </div>` : '';
     return `
-    <div class="rand-result-card" data-rarity="${esc(item.rarity||'')}" onclick="openLightbox('${esc(item.image||'')}','${esc(item.name)}')" style="${item.image?'cursor:zoom-in':''}">
+    <div class="rand-result-card" data-rarity="${esc(item.rarity||'')}" data-img="${esc(item.image||'')}" data-name="${esc(item.name)}" style="${item.image?'cursor:zoom-in':''}">
       ${item.image?`<img src="${esc(item.image)}" class="rand-result-img" loading="lazy" onerror="this.style.display='none'">`:`<div class="rand-result-img no-img-big">${FN_CATS[cat]?.icon||'🎮'}</div>`}
       <div class="rand-result-info">
         <div class="rand-result-cat">${FN_CATS[cat]?.label||cat}</div>
@@ -960,6 +962,10 @@ function doRandFN(){
       </div>
     </div>`;
   }).join('');
+  c.querySelectorAll('.rand-result-card').forEach(card=>{
+    const img = card.dataset.img, nm = card.dataset.name;
+    if(img) card.addEventListener('click', ()=>openLightbox(img, nm));
+  });
 }
 
 // ═══════════════════════════════════════════════════════
