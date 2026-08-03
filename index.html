@@ -336,12 +336,15 @@ function loadData() {
     if(!saved.items) saved.items={};
     if(!saved.series) saved.series=[...DEFAULT_DATA.series];
     // Migration : anciennes variantes à plat -> groupe "Variantes" par défaut
+    // (une seule fois : ensuite s.variants sert de bac "sans groupe" pour les nouvelles variantes libres)
     (saved.items.skin||[]).forEach(s=>{
       if(!s.variantGroups) {
         s.variantGroups = (s.variants&&s.variants.length)
           ? [{id:generateId('vg'), name:'Variantes', variants:s.variants.map(v=>({...v, owned:true}))}]
           : [];
+        s.variants = [];
       }
+      if(!s.variants) s.variants=[];
     });
     return saved;
   } catch(e) { return JSON.parse(JSON.stringify(DEFAULT_DATA)); }
@@ -594,7 +597,7 @@ function renderFnGrid(cat, items) {
       <div class="skin-info">
         <div class="skin-name">${esc(s.name)}</div>
         <div class="skin-meta"><span class="skin-rarity-label ${esc(s.rarity||'')}">${esc(s.rarity||'')}</span>${s.series?`<span class="skin-series-badge" style="color:${seriesColor(s.series)};border-color:${seriesColor(s.series)}55;background:${seriesColor(s.series)}15">${esc(s.series)}</span>`:''}</div>
-        ${cat==='skin'&&s.variantGroups&&s.variantGroups.length?`<div style="font-size:.63rem;color:var(--fn);margin-top:3px">${s.variantGroups.length} groupe${s.variantGroups.length>1?'s':''} · ${s.variantGroups.reduce((a,g)=>a+g.variants.length,0)} variante${s.variantGroups.reduce((a,g)=>a+g.variants.length,0)>1?'s':''}</div>`:''}
+        ${cat==='skin'&&((s.variantGroups&&s.variantGroups.length)||(s.variants&&s.variants.length))?`<div style="font-size:.63rem;color:var(--fn);margin-top:3px">${(()=>{const gc=(s.variantGroups||[]).length;const vc=(s.variantGroups||[]).reduce((a,g)=>a+g.variants.length,0)+((s.variants||[]).length);return `${gc?gc+' groupe'+(gc>1?'s':'')+' · ':''}${vc} variante${vc>1?'s':''}`;})()}</div>`:''}
         ${cat==='skin'&&s.forFestival?`<div class="festival-tag">🎸 Festival</div>`:''}
         ${s.weight&&s.weight!==5?`<div class="skin-weight-tag">🎲 ×${s.weight}</div>`:''}
         ${s.notes?`<div class="skin-note" title="${esc(s.notes)}">📝 ${esc(s.notes)}</div>`:''}
@@ -636,16 +639,41 @@ function fnRarFilter(btn, r) {
 }
 
 // ── Détail d'un skin (avec groupes de variantes) ──
+function _renderVariantThumb(s, groupId, v) {
+  return `
+    <div class="vp-thumb-wrap" draggable="true" data-drag-skin="${esc(s.id)}" data-drag-group="${esc(groupId)}" data-drag-var="${esc(v.id)}" title="Glisse vers un autre groupe">
+      <div class="vp-card ${v.owned?'owned':'locked'}" data-img="${esc(v.image||'')}" data-name="${esc(v.name)}">
+        ${v.image?`<img src="${esc(v.image)}" loading="lazy">`:`<div class="vp-noimg">⚡</div>`}
+        ${!v.owned?`<div class="vp-lock">🔒</div>`:''}
+        <div class="vp-actions">
+          <button class="vp-owned-btn" data-skin-id="${esc(s.id)}" data-group-id="${esc(groupId)}" data-var-id="${esc(v.id)}" title="Marquer possédé / non possédé">${v.owned?'🔓':'🔒'}</button>
+          <button class="vp-edit-btn" data-skin-id="${esc(s.id)}" data-group-id="${esc(groupId)}" data-var-id="${esc(v.id)}">✏</button>
+          <button class="vp-del-btn" data-skin-id="${esc(s.id)}" data-group-id="${esc(groupId)}" data-var-id="${esc(v.id)}">🗑</button>
+        </div>
+      </div>
+      <div class="vp-name-label" title="${esc(v.name)}">${esc(v.name)}</div>
+    </div>`;
+}
 function fnOpenModal(id) {
   const db=loadData();
   const s=(db.items['skin']||[]).find(x=>x.id===id);
   if(!s) return;
   const groups=s.variantGroups||[];
+  const ungrouped=s.variants||[];
   const rarityColor={Mythic:'var(--mythic)',Legendary:'var(--legendary)',Epic:'var(--epic)',Rare:'var(--rare)',Uncommon:'var(--uncommon)',Common:'var(--common)'}[s.rarity]||'var(--text-muted)';
 
-  const groupsHTML = groups.length===0
-    ? `<p style="color:var(--text-muted);font-size:.82rem;margin-top:6px">Aucun groupe de variantes. Crées-en depuis <strong>➕ Ajouter</strong>.</p>`
-    : groups.map(g=>`
+  const ungroupedHTML = (ungrouped.length===0 && groups.length>0) ? '' : `
+      <div class="variant-group" data-group-id="_ungrouped">
+        <div class="variant-group-header">
+          <span class="variant-group-title" style="color:var(--text-dim)">🎲 Sans groupe · ${ungrouped.length}</span>
+        </div>
+        <div class="variant-thumbs" data-drop-group="_ungrouped">
+          ${ungrouped.length===0?`<div style="font-size:.7rem;color:var(--text-muted);font-style:italic;padding:8px">Variantes libres, pas besoin de groupe — glisse-en une ici, ou ajoute-en depuis ➕ Ajouter</div>`:''}
+          ${ungrouped.map(v=>_renderVariantThumb(s, '_ungrouped', v)).join('')}
+        </div>
+      </div>`;
+
+  const groupsHTML = groups.map(g=>`
       <div class="variant-group" data-group-id="${esc(g.id)}">
         <div class="variant-group-header">
           <span class="variant-group-title">${esc(g.name)} · ${g.variants.length}</span>
@@ -653,19 +681,7 @@ function fnOpenModal(id) {
         </div>
         <div class="variant-thumbs" data-drop-group="${esc(g.id)}">
           ${g.variants.length===0?`<div style="font-size:.7rem;color:var(--text-muted);font-style:italic;padding:8px">Glisse une variante ici</div>`:''}
-          ${g.variants.map(v=>`
-            <div class="vp-thumb-wrap" draggable="true" data-drag-skin="${esc(s.id)}" data-drag-group="${esc(g.id)}" data-drag-var="${esc(v.id)}" title="Glisse vers un autre groupe">
-              <div class="vp-card ${v.owned?'owned':'locked'}" data-img="${esc(v.image||'')}" data-name="${esc(v.name)}">
-                ${v.image?`<img src="${esc(v.image)}" loading="lazy">`:`<div class="vp-noimg">⚡</div>`}
-                ${!v.owned?`<div class="vp-lock">🔒</div>`:''}
-                <div class="vp-actions">
-                  <button class="vp-owned-btn" data-skin-id="${esc(s.id)}" data-group-id="${esc(g.id)}" data-var-id="${esc(v.id)}" title="Marquer possédé / non possédé">${v.owned?'🔓':'🔒'}</button>
-                  <button class="vp-edit-btn" data-skin-id="${esc(s.id)}" data-group-id="${esc(g.id)}" data-var-id="${esc(v.id)}">✏</button>
-                  <button class="vp-del-btn" data-skin-id="${esc(s.id)}" data-group-id="${esc(g.id)}" data-var-id="${esc(v.id)}">🗑</button>
-                </div>
-              </div>
-              <div class="vp-name-label" title="${esc(v.name)}">${esc(v.name)}</div>
-            </div>`).join('')}
+          ${g.variants.map(v=>_renderVariantThumb(s, g.id, v)).join('')}
         </div>
       </div>`).join('');
 
@@ -684,6 +700,8 @@ function fnOpenModal(id) {
         ${s.forFestival?`<span style="padding:5px 14px;border-radius:20px;font-size:.72rem;font-weight:600;background:rgba(255,107,53,.1);color:var(--festival);border:1px solid rgba(255,107,53,.35)">🎸 Festival</span>`:''}
       </div>
       ${s.notes?`<div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:18px;font-size:.85rem;color:var(--text-dim);white-space:pre-wrap">📝 ${esc(s.notes)}</div>`:''}
+      ${(groups.length===0 && ungrouped.length===0)?`<p style="color:var(--text-muted);font-size:.82rem;margin-top:6px">Aucune variante enregistrée. Ajoutes-en depuis <strong>➕ Ajouter</strong> (avec ou sans groupe).</p>`:''}
+      ${ungroupedHTML}
       ${groupsHTML}
     </div>
   `);
@@ -728,13 +746,17 @@ function fnOpenModal(id) {
     });
   }, 50);
 }
+function _variantBucket(skin, groupId) {
+  if(groupId==='_ungrouped') { if(!skin.variants) skin.variants=[]; return {name:'Sans groupe', variants: skin.variants}; }
+  return skin.variantGroups.find(g=>g.id===groupId);
+}
 function fnMoveVariantToGroup(skinId, fromGroupId, varId, toGroupId) {
   if(fromGroupId===toGroupId) return;
   const db = loadData();
   const skin = (db.items['skin']||[]).find(s=>s.id===skinId);
   if(!skin) return;
-  const fromGroup = skin.variantGroups.find(g=>g.id===fromGroupId);
-  const toGroup = skin.variantGroups.find(g=>g.id===toGroupId);
+  const fromGroup = _variantBucket(skin, fromGroupId);
+  const toGroup = _variantBucket(skin, toGroupId);
   if(!fromGroup||!toGroup) return;
   const idx = fromGroup.variants.findIndex(v=>v.id===varId);
   if(idx===-1) return;
@@ -747,7 +769,7 @@ function fnMoveVariantToGroup(skinId, fromGroupId, varId, toGroupId) {
 function fnToggleVariantOwned(skinId, groupId, varId) {
   const db = loadData();
   const skin = (db.items['skin']||[]).find(s=>s.id===skinId);
-  const group = skin?.variantGroups.find(g=>g.id===groupId);
+  const group = skin && _variantBucket(skin, groupId);
   const v = group?.variants.find(x=>x.id===varId);
   if(!v) return;
   v.owned = !v.owned;
@@ -765,7 +787,7 @@ function fnDeleteVariant(skinId, groupId, varId) {
   if(!confirm('Supprimer cette variante ?')) return;
   const db = loadData();
   const skin = (db.items['skin']||[]).find(s=>s.id===skinId);
-  const group = skin?.variantGroups.find(g=>g.id===groupId);
+  const group = skin && _variantBucket(skin, groupId);
   if(!group) return;
   group.variants = group.variants.filter(v=>v.id!==varId);
   saveData(db); showToast('Variante supprimée ✓'); fnOpenModal(skinId);
@@ -773,7 +795,7 @@ function fnDeleteVariant(skinId, groupId, varId) {
 function fnEditVariant(skinId, groupId, varId) {
   const db = loadData();
   const skin = (db.items['skin']||[]).find(s=>s.id===skinId);
-  const group = skin?.variantGroups.find(g=>g.id===groupId);
+  const group = skin && _variantBucket(skin, groupId);
   const v = group?.variants.find(x=>x.id===varId);
   if(!v) return;
   openModal(`Modifier : ${esc(v.name)}`, `
@@ -794,7 +816,7 @@ function fnSaveVariantEdit(skinId, groupId, varId) {
   if(!name) { showToast('Le nom est requis','error'); return; }
   const db = loadData();
   const skin = (db.items['skin']||[]).find(s=>s.id===skinId);
-  const group = skin?.variantGroups.find(g=>g.id===groupId);
+  const group = skin && _variantBucket(skin, groupId);
   const v = group?.variants.find(x=>x.id===varId);
   if(!v) return;
   v.name = name; v.image = image||null; v.owned = !!owned;
@@ -946,8 +968,7 @@ function _populateFNGroupSelect(){
   const db=loadData();
   const skin=(db.items['skin']||[]).find(s=>s.id===skinId);
   const groups=skin?.variantGroups||[];
-  if(!groups.length){ groupSel.innerHTML='<option value="">-- Aucun groupe, crée-en un au-dessus --</option>'; return; }
-  groupSel.innerHTML='<option value="">-- Choisir un groupe --</option>'+groups.map(g=>`<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('');
+  groupSel.innerHTML='<option value="">🎲 Sans groupe (variante libre)</option>'+groups.map(g=>`<option value="${esc(g.id)}">${esc(g.name)}</option>`).join('');
 }
 function saveFNVariantGroup(){
   const parentId=document.getElementById('fn-group-parent')?.value;
@@ -968,12 +989,20 @@ function saveFNVariant(){
   const name=document.getElementById('fn-var-name')?.value.trim();
   const image=document.getElementById('fn-var-img')?.value.trim();
   const owned=document.getElementById('fn-var-owned')?.checked;
-  if(!parentId||!groupId||!name){showToast('Choisis un skin, un groupe et donne un nom','error');return;}
+  if(!parentId||!name){showToast('Choisis un skin et donne un nom','error');return;}
   const db=loadData();
   const skin=(db.items['skin']||[]).find(s=>s.id===parentId);
-  const group=skin?.variantGroups.find(g=>g.id===groupId);
-  if(!group){showToast('Groupe introuvable','error');return;}
-  group.variants.push({id:generateId('fnv'),name,image:image||null,owned:!!owned});
+  if(!skin){showToast('Skin introuvable','error');return;}
+  let targetArr;
+  if(groupId) {
+    const group = skin.variantGroups.find(g=>g.id===groupId);
+    if(!group){showToast('Groupe introuvable','error');return;}
+    targetArr = group.variants;
+  } else {
+    if(!skin.variants) skin.variants=[];
+    targetArr = skin.variants;
+  }
+  targetArr.push({id:generateId('fnv'),name,image:image||null,owned:!!owned});
   saveData(db); showToast('Variante ajoutée ✓');
   document.getElementById('fn-var-name').value='';
   document.getElementById('fn-var-img').value='';
@@ -1101,7 +1130,10 @@ function doRandFN(){
   const c=document.getElementById('fn-rand-results');
   if(!results.length){c.innerHTML=`<div class="empty-state" style="grid-column:1/-1"><div class="icon">😅</div><p>Aucun item dans les catégories sélectionnées.<br>Ajoute des skins d'abord !</p></div>`;return;}
   c.innerHTML=results.map(({cat,item})=>{
-    const allVariants = cat==='skin' && item.variantGroups ? item.variantGroups.flatMap(g=>g.variants.map(v=>({...v, groupName:g.name}))) : [];
+    const allVariants = cat==='skin' ? [
+      ...(item.variantGroups||[]).flatMap(g=>g.variants.map(v=>({...v, groupName:g.name}))),
+      ...(item.variants||[]).map(v=>({...v, groupName:'Sans groupe'}))
+    ] : [];
     const hasVariants = allVariants.length>0;
     const variant = hasVariants ? rand(allVariants) : null;
     const variantSection = hasVariants ? `
