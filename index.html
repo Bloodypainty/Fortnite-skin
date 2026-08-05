@@ -1058,7 +1058,59 @@ Doré = Avec chapeau = https://.../chap2.png"></textarea>
         <button type="button" class="btn btn-ghost" onclick="fnBulkPreviewImages()">🔍 Prévisualiser les correspondances</button>
       </div>
       <div id="fn-bulk-preview"></div>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-title">🧹 Nettoyer les variantes sans image</div>
+      <p style="color:var(--text-muted);font-size:.83rem;margin-bottom:16px">Supprime en une fois toutes les variantes qui n'ont pas d'image, sur tous les skins (groupées ou non) — pratique pour effacer les entrées cadenas restées vides après un import.</p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-ghost" onclick="fnScanEmptyVariants()">🔍 Analyser toute la collection</button>
+      </div>
+      <div id="fn-empty-scan-preview"></div>
     </div>`;
+}
+function fnScanEmptyVariants(){
+  const db=loadData();
+  const skins=db.items['skin']||[];
+  const perSkin=[];
+  let total=0;
+  skins.forEach(s=>{
+    let n=0;
+    (s.variantGroups||[]).forEach(g=>{ n += (g.variants||[]).filter(v=>!v.image).length; });
+    n += (s.variants||[]).filter(v=>!v.image).length;
+    if(n>0){ perSkin.push({id:s.id,name:s.name,count:n}); total+=n; }
+  });
+  const box=document.getElementById('fn-empty-scan-preview');
+  if(!box) return;
+  if(!total){
+    box.innerHTML = `<p style="color:var(--text-muted);font-size:.83rem;margin-top:14px">Aucune variante sans image trouvée ✓</p>`;
+    return;
+  }
+  box.innerHTML = `
+    <div style="margin-top:14px;display:flex;flex-direction:column;gap:6px">
+      ${perSkin.map(s=>`<div style="display:flex;justify-content:space-between;padding:7px 11px;background:var(--bg3);border-radius:var(--r);border:1px solid var(--border);font-size:.82rem"><span>${esc(s.name)}</span><span style="color:var(--text-muted)">${s.count} sans image</span></div>`).join('')}
+    </div>
+    <div class="btn-row" style="margin-top:14px">
+      <button type="button" class="btn btn-danger" onclick="fnDeleteEmptyVariants()">🗑 Supprimer ces ${total} variante${total>1?'s':''} sans image</button>
+    </div>`;
+}
+function fnDeleteEmptyVariants(){
+  const db=loadData();
+  const skins=db.items['skin']||[];
+  let total=0;
+  skins.forEach(s=>{
+    (s.variantGroups||[]).forEach(g=>{ total += (g.variants||[]).filter(v=>!v.image).length; });
+    total += (s.variants||[]).filter(v=>!v.image).length;
+  });
+  if(!total){ showToast('Rien à supprimer','error'); return; }
+  if(!confirm(`Supprimer définitivement ${total} variante${total>1?'s':''} sans image sur toute la collection ?`)) return;
+  skins.forEach(s=>{
+    (s.variantGroups||[]).forEach(g=>{ g.variants=(g.variants||[]).filter(v=>!!v.image); });
+    s.variants=(s.variants||[]).filter(v=>!!v.image);
+  });
+  saveData(db);
+  showToast(`${total} variante${total>1?'s':''} sans image supprimée${total>1?'s':''} ✓`);
+  const box=document.getElementById('fn-empty-scan-preview'); if(box) box.innerHTML='';
 }
 function fnBulkClearPreview(){
   const p=document.getElementById('fn-bulk-preview'); if(p) p.innerHTML='';
