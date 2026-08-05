@@ -1035,7 +1035,132 @@ function renderAdd(){
       <div class="btn-row">
         <button type="button" class="btn btn-primary" onclick="saveFNVariant()">➕ Ajouter la variante</button>
       </div>
+    </div>
+
+    <div class="form-section">
+      <div class="form-section-title">🖼️ Ajouter plein d'images d'un coup (variantes)</div>
+      <p style="color:var(--text-muted);font-size:.83rem;margin-bottom:16px">Colle une liste de liens d'images (un par ligne). Chaque lien est associé automatiquement à la variante dont le nom est déjà noté sur ce skin. Tu peux aussi forcer la correspondance avec <code>Nom = URL</code>. Vérifie/corrige les correspondances avant de valider.</p>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Skin</label>
+          <select id="fn-bulk-parent" onchange="fnBulkClearPreview()"><option value="">-- Choisir un skin --</option></select>
+        </div>
+      </div>
+      <div class="form-row single">
+        <div class="form-group">
+          <label>Liens (un par ligne)</label>
+          <textarea id="fn-bulk-urls" rows="6" placeholder="https://.../dore.png
+https://.../glace.png
+Nom exact de la variante = https://..."></textarea>
+        </div>
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-ghost" onclick="fnBulkPreviewImages()">🔍 Prévisualiser les correspondances</button>
+      </div>
+      <div id="fn-bulk-preview"></div>
     </div>`;
+}
+function fnBulkClearPreview(){
+  const p=document.getElementById('fn-bulk-preview'); if(p) p.innerHTML='';
+}
+function _fnNormStr(s){
+  return String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+}
+function _fnAllVariantsOf(skin){
+  const list=[];
+  (skin.variantGroups||[]).forEach(g=>{
+    (g.variants||[]).forEach(v=>list.push({key:g.id+'::'+v.id, groupId:g.id, varId:v.id, name:v.name, groupName:g.name}));
+  });
+  (skin.variants||[]).forEach(v=>list.push({key:'_ungrouped::'+v.id, groupId:'_ungrouped', varId:v.id, name:v.name, groupName:'Sans groupe'}));
+  return list;
+}
+function _fnExtractNameFromUrl(url){
+  try{
+    const clean=url.split('?')[0].split('#')[0];
+    const seg=clean.split('/').filter(Boolean).pop()||'';
+    const noExt=seg.replace(/\.[a-zA-Z0-9]{2,5}$/,'');
+    return decodeURIComponent(noExt).replace(/[-_]+/g,' ');
+  }catch(e){ return url; }
+}
+function fnBulkPreviewImages(){
+  const skinId=document.getElementById('fn-bulk-parent')?.value;
+  const raw=document.getElementById('fn-bulk-urls')?.value||'';
+  if(!skinId){ showToast('Choisis un skin','error'); return; }
+  const db=loadData();
+  const skin=(db.items['skin']||[]).find(s=>s.id===skinId);
+  if(!skin){ showToast('Skin introuvable','error'); return; }
+  const variants=_fnAllVariantsOf(skin);
+  if(!variants.length){ showToast("Ce skin n'a aucune variante enregistrée",'error'); return; }
+  const lines=raw.split('\n').map(l=>l.trim()).filter(Boolean);
+  if(!lines.length){ showToast('Colle au moins un lien','error'); return; }
+
+  const usedKeys=new Set();
+  const rows=lines.map(line=>{
+    let forcedName=null, url=line;
+    const eqIdx=line.indexOf('=');
+    if(eqIdx>-1 && /^https?:\/\//i.test(line.slice(eqIdx+1).trim())){
+      forcedName=line.slice(0,eqIdx).trim();
+      url=line.slice(eqIdx+1).trim();
+    }
+    const guessSource=forcedName || _fnExtractNameFromUrl(url);
+    const normGuess=_fnNormStr(guessSource);
+    let best=null, bestScore=-1;
+    variants.forEach(v=>{
+      if(usedKeys.has(v.key)) return;
+      const normName=_fnNormStr(v.name);
+      if(!normName) return;
+      let score=0;
+      if(normName===normGuess) score=100;
+      else if(normGuess.includes(normName)) score=80+normName.length;
+      else if(normName.includes(normGuess)) score=60+normGuess.length;
+      if(score>bestScore){ bestScore=score; best=v; }
+    });
+    const matched = bestScore>=60 ? best : null;
+    if(matched) usedKeys.add(matched.key);
+    return { url, guessSource, matchedKey: matched?matched.key:'' };
+  });
+
+  const optionsHtml=(selectedKey)=>'<option value="">-- Ignorer --</option>'+variants.map(v=>`<option value="${esc(v.key)}" ${v.key===selectedKey?'selected':''}>${esc(v.groupName)} → ${esc(v.name)}</option>`).join('');
+
+  const matchedCount=rows.filter(r=>r.matchedKey).length;
+  const html=`
+    <div style="margin-top:14px;display:flex;flex-direction:column;gap:8px">
+      ${rows.map(r=>`
+        <div class="fn-bulk-row" data-url="${esc(r.url)}" style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--bg3);border-radius:var(--r);border:1px solid var(--border)">
+          <img src="${esc(r.url)}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;background:var(--bg4);flex-shrink:0" loading="lazy" onerror="this.style.opacity='.15'">
+          <div style="flex:1;min-width:0">
+            <div style="font-size:.72rem;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(r.url)}</div>
+            <div style="font-size:.65rem;color:var(--text-dim);margin-top:2px">deviné : "${esc(r.guessSource)}"</div>
+          </div>
+          <select class="fn-bulk-target" style="max-width:230px;flex-shrink:0">${optionsHtml(r.matchedKey)}</select>
+        </div>`).join('')}
+    </div>
+    <div class="btn-row" style="margin-top:14px">
+      <button type="button" class="btn btn-primary" onclick="fnBulkApplyImages('${esc(skinId)}')">✅ Appliquer les images (${matchedCount}/${rows.length} pré-associées)</button>
+    </div>`;
+  document.getElementById('fn-bulk-preview').innerHTML=html;
+}
+function fnBulkApplyImages(skinId){
+  const db=loadData();
+  const skin=(db.items['skin']||[]).find(s=>s.id===skinId);
+  if(!skin){ showToast('Skin introuvable','error'); return; }
+  const rows=document.querySelectorAll('#fn-bulk-preview .fn-bulk-row');
+  let count=0;
+  rows.forEach(row=>{
+    const url=row.dataset.url;
+    const key=row.querySelector('.fn-bulk-target')?.value;
+    if(!key) return;
+    const [groupId,varId]=key.split('::');
+    let v;
+    if(groupId==='_ungrouped'){ v=(skin.variants||[]).find(x=>x.id===varId); }
+    else { const g=(skin.variantGroups||[]).find(gr=>gr.id===groupId); v=g?.variants.find(x=>x.id===varId); }
+    if(v){ v.image=url; count++; }
+  });
+  if(!count){ showToast('Aucune image associée','error'); return; }
+  saveData(db);
+  showToast(`${count} image${count>1?'s':''} ajoutée${count>1?'s':''} ✓`);
+  document.getElementById('fn-bulk-preview').innerHTML='';
+  const ta=document.getElementById('fn-bulk-urls'); if(ta) ta.value='';
 }
 function _populateFNSkinSelect(){
   const db=loadData();
@@ -1043,6 +1168,7 @@ function _populateFNSkinSelect(){
   const opts='<option value="">-- Choisir un skin --</option>'+skins.map(s=>`<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('');
   const sel1=document.getElementById('fn-group-parent'); if(sel1) sel1.innerHTML=opts;
   const sel2=document.getElementById('fn-var-parent'); if(sel2) sel2.innerHTML=opts;
+  const sel3=document.getElementById('fn-bulk-parent'); if(sel3) sel3.innerHTML=opts;
 }
 function _populateFNGroupSelect(){
   const skinId=document.getElementById('fn-var-parent')?.value;
