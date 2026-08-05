@@ -196,8 +196,10 @@ select option{background:var(--bg3)}
 .fn-cats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
 .fn-cat-check{cursor:pointer}
 .fn-cat-check input{display:none}
-.fn-cat-pill{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg3);font-family:'Rajdhani',sans-serif;font-weight:600;font-size:.85rem;letter-spacing:.05em;color:var(--text-dim);transition:.22s;cursor:pointer}
+.fn-cat-pill{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:var(--r);border:1px solid var(--border2);background:var(--bg3);font-family:'Rajdhani',sans-serif;font-weight:600;font-size:.85rem;letter-spacing:.05em;color:var(--text-dim);transition:.22s;cursor:pointer;position:relative}
 .fn-cat-check input:checked+.fn-cat-pill{background:rgba(0,212,255,.1);border-color:rgba(0,212,255,.4);color:var(--fn)}
+.fn-cat-solo{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(7,7,10,.88);border:none;border-radius:calc(var(--r) - 1px);color:var(--fn);font-family:'Rajdhani',sans-serif;font-weight:700;font-size:.72rem;letter-spacing:.06em;cursor:pointer;opacity:0;transition:.15s}
+.fn-cat-pill:hover .fn-cat-solo{opacity:1}
 .fn-cat-pill .cat-icon{font-size:1.1rem}
 .rand-btn{font-size:1.05rem;padding:14px 34px;border-radius:var(--rl);background:linear-gradient(135deg,rgba(0,212,255,.22),rgba(155,48,255,.2));border:1px solid rgba(0,212,255,.4);color:#fff;font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:.08em;cursor:pointer;transition:.25s;display:flex;align-items:center;gap:10px}
 .rand-btn:hover{box-shadow:0 8px 30px rgba(0,212,255,.25)}
@@ -1093,12 +1095,18 @@ function renderRandom(){
         <div><div class="page-title" style="background:linear-gradient(135deg,var(--fn),var(--epic));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">RANDOMIZER</div><div style="color:var(--text-muted);font-size:.8rem;margin-top:4px;letter-spacing:.1em">CHOIX ALÉATOIRE</div></div>
       </div>
       <div class="rand-step">
-        <div class="rand-step-title"><div class="step-num">1</div>Choisir les catégories à randomizer</div>
+        <div class="rand-step-title" style="justify-content:space-between;display:flex;align-items:center">
+          <span style="display:flex;align-items:center;gap:10px"><div class="step-num">1</div>Choisir les catégories à randomizer</span>
+          <span style="display:flex;gap:6px">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="fnCatsSetAll(true)">☑ Tout cocher</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="fnCatsSetAll(false)">☐ Tout décocher</button>
+          </span>
+        </div>
         <div class="fn-cats-grid">
           ${Object.entries(FN_CATS).map(([k,v])=>`
             <label class="fn-cat-check">
               <input type="checkbox" value="${k}" checked>
-              <div class="fn-cat-pill"><span class="cat-icon">${v.icon}</span>${v.label}</div>
+              <div class="fn-cat-pill"><span class="cat-icon">${v.icon}</span>${v.label}<button type="button" class="fn-cat-solo" onclick="event.preventDefault();fnCatSolo('${k}')" title="Sélectionner seulement celle-ci">Seulement</button></div>
             </label>`).join('')}
         </div>
       </div>
@@ -1113,6 +1121,12 @@ function renderRandom(){
       </div>
       <div class="rand-results" id="fn-rand-results"></div>
     </div>`;
+}
+function fnCatsSetAll(state) {
+  document.querySelectorAll('.fn-cat-check input[type=checkbox]').forEach(i=>i.checked=state);
+}
+function fnCatSolo(cat) {
+  document.querySelectorAll('.fn-cat-check input[type=checkbox]').forEach(i=>i.checked=(i.value===cat));
 }
 function doRandFN(){
   const db=loadData();
