@@ -798,9 +798,13 @@ function fnOpenDuplicateGroupModal(skinId, groupId) {
   const skinOpts = skins.map(s=>`<option value="${esc(s.id)}" ${s.id===skinId?'selected':''}>${esc(s.name)}</option>`).join('');
   openModal(`Dupliquer : ${esc(group.name)}`, `
     <div style="display:flex;flex-direction:column;gap:14px">
-      <p style="color:var(--text-muted);font-size:.82rem;margin:0">Recrée les ${group.variants.length} mêmes noms de variante (${group.variants.map(v=>esc(v.name)).join(', ')}) dans un nouveau groupe, prêt à recevoir de nouvelles images.</p>
-      <div class="form-group"><label>Skin cible</label><select id="dup-group-skin">${skinOpts}</select></div>
-      <div class="form-group"><label>Nom du nouveau groupe *</label><input type="text" id="dup-group-name" value="${esc(group.name)} (copie)"></div>
+      <p style="color:var(--text-muted);font-size:.82rem;margin:0">Recrée les ${group.variants.length} mêmes noms de variante (${group.variants.map(v=>esc(v.name)).join(', ')}) — soit dans un nouveau groupe, soit ajoutées directement dans un groupe déjà existant.</p>
+      <div class="form-group"><label>Skin cible</label><select id="dup-group-skin" onchange="_populateDupGroupTarget('${esc(skinId)}','${esc(groupId)}')">${skinOpts}</select></div>
+      <div class="form-group">
+        <label>Où les mettre ?</label>
+        <select id="dup-group-target" onchange="_dupGroupTargetChanged()"></select>
+      </div>
+      <div class="form-group" id="dup-group-name-row"><label>Nom du nouveau groupe *</label><input type="text" id="dup-group-name" value="${esc(group.name)} (copie)"></div>
       <label class="festival-toggle" style="text-transform:none;letter-spacing:0"><input type="checkbox" id="dup-group-clear-img" checked><span>Vider les images (à remplacer une par une)</span></label>
       <label class="festival-toggle" style="text-transform:none;letter-spacing:0"><input type="checkbox" id="dup-group-reset-owned" checked><span>Remettre "non possédé" sur toutes</span></label>
       <div style="display:flex;gap:10px">
@@ -808,32 +812,56 @@ function fnOpenDuplicateGroupModal(skinId, groupId) {
         <button class="btn btn-ghost" onclick="fnOpenModal('${esc(skinId)}')">✕ Annuler</button>
       </div>
     </div>`);
+  _populateDupGroupTarget(skinId, groupId);
+}
+function _populateDupGroupTarget(sourceSkinId, sourceGroupId) {
+  const targetSkinId = document.getElementById('dup-group-skin')?.value;
+  const sel = document.getElementById('dup-group-target');
+  if(!sel||!targetSkinId) return;
+  const db = loadData();
+  const targetSkin = (db.items['skin']||[]).find(s=>s.id===targetSkinId);
+  const otherGroups = (targetSkin?.variantGroups||[]).filter(g=>!(targetSkinId===sourceSkinId && g.id===sourceGroupId));
+  sel.innerHTML = `<option value="">➕ Créer un nouveau groupe</option>` +
+    otherGroups.map(g=>`<option value="${esc(g.id)}">Ajouter dans "${esc(g.name)}" (${g.variants.length} variantes)</option>`).join('');
+  _dupGroupTargetChanged();
+}
+function _dupGroupTargetChanged() {
+  const val = document.getElementById('dup-group-target')?.value;
+  const nameRow = document.getElementById('dup-group-name-row');
+  if(nameRow) nameRow.style.display = val ? 'none' : '';
 }
 function fnSaveDuplicateGroup(skinId, groupId) {
   const targetSkinId = document.getElementById('dup-group-skin')?.value;
+  const targetGroupId = document.getElementById('dup-group-target')?.value;
   const newName = document.getElementById('dup-group-name')?.value.trim();
   const clearImg = document.getElementById('dup-group-clear-img')?.checked;
   const resetOwned = document.getElementById('dup-group-reset-owned')?.checked;
-  if(!newName) { showToast('Le nom du groupe est requis','error'); return; }
   const db = loadData();
   const sourceSkin = (db.items['skin']||[]).find(s=>s.id===skinId);
   const targetSkin = (db.items['skin']||[]).find(s=>s.id===targetSkinId);
   const sourceGroup = sourceSkin?.variantGroups.find(g=>g.id===groupId);
   if(!sourceGroup||!targetSkin) { showToast('Skin ou groupe introuvable','error'); return; }
-  if(!targetSkin.variantGroups) targetSkin.variantGroups=[];
-  const newGroup = {
-    id: generateId('vg'),
-    name: newName,
-    variants: sourceGroup.variants.map(v=>({
-      id: generateId('fnv'),
-      name: v.name,
-      image: clearImg ? null : v.image,
-      owned: resetOwned ? false : v.owned
-    }))
-  };
-  targetSkin.variantGroups.push(newGroup);
-  saveData(db);
-  showToast(`Groupe dupliqué ✓ (${newGroup.variants.length} variantes)`);
+  const clonedVariants = sourceGroup.variants.map(v=>({
+    id: generateId('fnv'),
+    name: v.name,
+    image: clearImg ? null : v.image,
+    owned: resetOwned ? false : v.owned
+  }));
+  if(targetGroupId) {
+    // Ajout dans un groupe déjà existant
+    const targetGroup = targetSkin.variantGroups.find(g=>g.id===targetGroupId);
+    if(!targetGroup) { showToast('Groupe cible introuvable','error'); return; }
+    targetGroup.variants.push(...clonedVariants);
+    saveData(db);
+    showToast(`${clonedVariants.length} variantes ajoutées dans "${targetGroup.name}" ✓`);
+  } else {
+    if(!newName) { showToast('Le nom du groupe est requis','error'); return; }
+    if(!targetSkin.variantGroups) targetSkin.variantGroups=[];
+    const newGroup = { id: generateId('vg'), name: newName, variants: clonedVariants };
+    targetSkin.variantGroups.push(newGroup);
+    saveData(db);
+    showToast(`Groupe dupliqué ✓ (${newGroup.variants.length} variantes)`);
+  }
   fnOpenModal(targetSkinId);
 }
 function fnDeleteVariant(skinId, groupId, varId) {
