@@ -1039,7 +1039,7 @@ function renderAdd(){
 
     <div class="form-section">
       <div class="form-section-title">🖼️ Ajouter plein d'images d'un coup (variantes)</div>
-      <p style="color:var(--text-muted);font-size:.83rem;margin-bottom:16px">Colle une liste de liens d'images (un par ligne). Chaque lien est associé automatiquement à la variante dont le nom est déjà noté sur ce skin. Tu peux aussi forcer la correspondance avec <code>Nom = URL</code>. Vérifie/corrige les correspondances avant de valider.</p>
+      <p style="color:var(--text-muted);font-size:.83rem;margin-bottom:16px">Colle une liste de liens d'images (un par ligne). 3 formats possibles : juste l'URL (deviné depuis le nom du fichier) · <code>Nom = URL</code> · ou <code>Groupe = Nom = URL</code> si plusieurs groupes ont une variante du même nom (ex: "avec chapeau" dans "Doré" ET "De soirée") — utilise ce dernier pour lever l'ambiguïté. Vérifie/corrige les correspondances avant de valider.</p>
       <div class="form-row">
         <div class="form-group">
           <label>Skin</label>
@@ -1050,8 +1050,8 @@ function renderAdd(){
         <div class="form-group">
           <label>Liens (un par ligne)</label>
           <textarea id="fn-bulk-urls" rows="6" placeholder="https://.../dore.png
-https://.../glace.png
-Nom exact de la variante = https://..."></textarea>
+Avec chapeau = https://.../chap.png
+Doré = Avec chapeau = https://.../chap2.png"></textarea>
         </div>
       </div>
       <div class="btn-row">
@@ -1096,16 +1096,35 @@ function fnBulkPreviewImages(){
 
   const usedKeys=new Set();
   const rows=lines.map(line=>{
-    let forcedName=null, url=line;
-    const eqIdx=line.indexOf('=');
-    if(eqIdx>-1 && /^https?:\/\//i.test(line.slice(eqIdx+1).trim())){
-      forcedName=line.slice(0,eqIdx).trim();
-      url=line.slice(eqIdx+1).trim();
+    // Découpe la ligne en segments séparés par "=". Le dernier segment qui ressemble
+    // à une URL http(s) est l'URL ; ce qui précède contient éventuellement Nom, ou Groupe puis Nom.
+    let url=line, forcedGroup=null, forcedName=null;
+    const segments=line.split('=').map(s=>s.trim()).filter(s=>s.length);
+    if(segments.length>1 && /^https?:\/\//i.test(segments[segments.length-1])){
+      url=segments[segments.length-1];
+      const nameParts=segments.slice(0,-1);
+      if(nameParts.length===1){
+        forcedName=nameParts[0];
+      } else if(nameParts.length>=2){
+        forcedGroup=nameParts[0];
+        forcedName=nameParts.slice(1).join(' = ');
+      }
     }
     const guessSource=forcedName || _fnExtractNameFromUrl(url);
     const normGuess=_fnNormStr(guessSource);
+    const normGroup=forcedGroup?_fnNormStr(forcedGroup):null;
+
+    // Si un groupe est précisé, on ne cherche que parmi les variantes de ce groupe
+    // (correspondance exacte du nom de groupe en priorité, sinon inclusion).
+    let pool=variants;
+    if(normGroup){
+      let poolExact=variants.filter(v=>_fnNormStr(v.groupName)===normGroup);
+      if(!poolExact.length) poolExact=variants.filter(v=>_fnNormStr(v.groupName).includes(normGroup)||normGroup.includes(_fnNormStr(v.groupName)));
+      if(poolExact.length) pool=poolExact;
+    }
+
     let best=null, bestScore=-1;
-    variants.forEach(v=>{
+    pool.forEach(v=>{
       if(usedKeys.has(v.key)) return;
       const normName=_fnNormStr(v.name);
       if(!normName) return;
@@ -1117,7 +1136,7 @@ function fnBulkPreviewImages(){
     });
     const matched = bestScore>=60 ? best : null;
     if(matched) usedKeys.add(matched.key);
-    return { url, guessSource, matchedKey: matched?matched.key:'' };
+    return { url, guessSource: (forcedGroup?forcedGroup+' → ':'')+guessSource, matchedKey: matched?matched.key:'' };
   });
 
   const optionsHtml=(selectedKey)=>'<option value="">-- Ignorer --</option>'+variants.map(v=>`<option value="${esc(v.key)}" ${v.key===selectedKey?'selected':''}>${esc(v.groupName)} → ${esc(v.name)}</option>`).join('');
