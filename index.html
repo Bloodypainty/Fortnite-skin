@@ -657,6 +657,7 @@ function _renderVariantThumb(s, groupId, v) {
     </div>`;
 }
 function fnOpenModal(id) {
+  const _prevScroll = document.getElementById('modal')?.scrollTop || 0;
   const db=loadData();
   const s=(db.items['skin']||[]).find(x=>x.id===id);
   if(!s) return;
@@ -710,6 +711,8 @@ function fnOpenModal(id) {
       ${groupsHTML}
     </div>
   `);
+  const _modalEl = document.getElementById('modal');
+  if(_modalEl) _modalEl.scrollTop = _prevScroll;
 
   setTimeout(() => {
     const mainEl = document.querySelector('.fn-modal-main');
