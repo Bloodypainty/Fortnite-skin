@@ -250,7 +250,7 @@ select option{background:var(--bg3)}
 .vp-lock{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.35);font-size:1.1rem;pointer-events:none}
 .vp-name-label{text-align:center;font-size:.58rem;color:var(--text-dim);margin-top:4px;max-width:76px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vp-thumb-wrap{display:flex;flex-direction:column;align-items:center}
-.vp-actions{position:absolute;top:-4px;right:-4px;display:flex;gap:2px;opacity:0;transition:.2s;border-radius:20px}
+.vp-actions{position:absolute;top:2px;right:2px;display:flex;gap:2px;opacity:0;transition:.2s;border-radius:20px;z-index:5}
 .vp-card:hover .vp-actions, .vp-thumb-wrap:hover .vp-actions{opacity:1}
 .vp-edit-btn,.vp-del-btn,.vp-owned-btn{width:20px;height:20px;border-radius:50%;border:none;color:#fff;font-size:.62rem;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(8px)}
 .vp-edit-btn{background:rgba(255,255,255,.25)}
@@ -647,7 +647,7 @@ function _renderVariantThumb(s, groupId, v) {
       <div class="vp-card ${v.owned?'owned':'locked'}" data-img="${esc(v.image||'')}" data-name="${esc(v.name)}">
         ${v.image?`<img src="${esc(v.image)}" loading="lazy">`:`<div class="vp-noimg">⚡</div>`}
         ${!v.owned?`<div class="vp-lock">🔒</div>`:''}
-        <div class="vp-actions">
+        <div class="vp-actions" draggable="false">
           <button class="vp-owned-btn" data-skin-id="${esc(s.id)}" data-group-id="${esc(groupId)}" data-var-id="${esc(v.id)}" title="Marquer possédé / non possédé">${v.owned?'🔓':'🔒'}</button>
           <button class="vp-edit-btn" data-skin-id="${esc(s.id)}" data-group-id="${esc(groupId)}" data-var-id="${esc(v.id)}">✏</button>
           <button class="vp-del-btn" data-skin-id="${esc(s.id)}" data-group-id="${esc(groupId)}" data-var-id="${esc(v.id)}">🗑</button>
@@ -733,6 +733,7 @@ function fnOpenModal(id) {
     // Glisser-déposer une variante d'un groupe à un autre
     document.querySelectorAll('.vp-thumb-wrap').forEach(wrap => {
       wrap.addEventListener('dragstart', e => {
+        if(e.target.closest('.vp-actions')) { e.preventDefault(); return; }
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', JSON.stringify({
           skinId: wrap.dataset.dragSkin, groupId: wrap.dataset.dragGroup, varId: wrap.dataset.dragVar
@@ -873,7 +874,9 @@ function fnDeleteVariant(skinId, groupId, varId) {
   const skin = (db.items['skin']||[]).find(s=>s.id===skinId);
   const group = skin && _variantBucket(skin, groupId);
   if(!group) return;
-  group.variants = group.variants.filter(v=>v.id!==varId);
+  const idx = group.variants.findIndex(v=>v.id===varId);
+  if(idx===-1) return;
+  group.variants.splice(idx,1);
   saveData(db); showToast('Variante supprimée ✓'); fnOpenModal(skinId);
 }
 function fnEditVariant(skinId, groupId, varId) {
