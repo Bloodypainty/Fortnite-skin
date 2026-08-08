@@ -285,6 +285,7 @@ select option{background:var(--bg3)}
     <div class="sidebar-bottom">
       <button class="btn btn-ghost btn-sm" onclick="exportData()">⬇ Exporter</button>
       <label class="btn btn-ghost btn-sm" style="cursor:pointer;justify-content:center;">⬆ Importer<input type="file" accept=".json" style="display:none" onchange="handleImport(event)"></label>
+      <button class="btn btn-ghost btn-sm" onclick="openHelpModal()">🆘 Aide</button>
     </div>
   </aside>
   <main id="main"><div id="page-content"></div></main>
@@ -416,6 +417,25 @@ function openModal(title, body) {
 }
 function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); document.body.style.overflow=''; }
 function closeModalOnBg(e) { if(e.target===document.getElementById('modal-overlay')) closeModal(); }
+function openHelpModal() {
+  openModal('🆘 Besoin d\'aide ?', `
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <p style="color:var(--text-dim);font-size:.88rem;line-height:1.6;margin:0">
+        Ce site est un fichier statique (pas de serveur), donc pas de vrai chat intégré ici.
+        Mais avant d'aller demander de l'aide, vérifie ces pièges classiques :
+      </p>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;font-size:.85rem;color:var(--text-dim);line-height:1.7">
+        <strong style="color:var(--text)">🔄 Rien ne se passe / une action semble ignorée</strong><br>
+        → Rafraîchissement forcé : <kbd>Ctrl+Maj+R</kbd> (Windows) ou <kbd>Cmd+Maj+R</kbd> (Mac). Le cache du navigateur garde souvent l'ancienne version.<br><br>
+        <strong style="color:var(--text)">📄 Après un remplacement de fichier sur GitHub</strong><br>
+        → Vérifie que le commit est bien passé, attends 1-2 min que GitHub Pages se mette à jour, puis re-teste en navigation privée pour éliminer le cache.<br><br>
+        <strong style="color:var(--text)">💾 Peur de perdre tes données</strong><br>
+        → Clique <strong>⬇ Exporter</strong> régulièrement pour avoir une sauvegarde JSON de ta collection.
+      </div>
+      <a href="https://claude.ai/new" target="_blank" rel="noopener" class="btn btn-primary" style="text-decoration:none;justify-content:center">💬 Ouvrir une conversation avec Claude</a>
+      <p style="color:var(--text-muted);font-size:.75rem;margin:0">Astuce : si tu ouvres une conversation, exporte d'abord ta collection (⬇ Exporter) et partage le JSON avec Claude si le souci concerne tes données.</p>
+    </div>`);
+}
 
 // Toast
 let _tt;
