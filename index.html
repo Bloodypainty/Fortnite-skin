@@ -689,7 +689,7 @@ function fnOpenModal(id) {
       <div class="variant-group" data-group-id="_ungrouped">
         <div class="variant-group-header">
           <span class="variant-group-title" style="color:var(--text-dim)">🎲 Sans groupe · ${ungrouped.length}</span>
-          ${ungrouped.length>0?`<button class="variant-group-del" data-skin-id="${esc(s.id)}" data-group-id="_ungrouped" data-action="clear" style="color:var(--legendary)">🧹 Tout vider</button>`:''}
+          ${ungrouped.length>0?`<span style="display:flex;gap:4px"><button class="variant-group-del" data-skin-id="${esc(s.id)}" data-group-id="_ungrouped" data-action="unlock" style="color:var(--mythic)">🔓 Tout débloquer</button><button class="variant-group-del" data-skin-id="${esc(s.id)}" data-group-id="_ungrouped" data-action="clear" style="color:var(--legendary)">🧹 Tout vider</button></span>`:''}
         </div>
         <div class="variant-thumbs" data-drop-group="_ungrouped">
           ${ungrouped.length===0?`<div style="font-size:.7rem;color:var(--text-muted);font-style:italic;padding:8px">Variantes libres, pas besoin de groupe — glisse-en une ici, ou ajoute-en depuis ➕ Ajouter</div>`:''}
@@ -703,6 +703,7 @@ function fnOpenModal(id) {
           <span class="variant-group-title">${esc(g.name)} · ${g.variants.length}</span>
           <span style="display:flex;gap:4px">
             <button class="variant-group-del" data-skin-id="${esc(s.id)}" data-group-id="${esc(g.id)}" data-action="dup" style="color:var(--fn)">📋 Dupliquer</button>
+            <button class="variant-group-del" data-skin-id="${esc(s.id)}" data-group-id="${esc(g.id)}" data-action="unlock" style="color:var(--mythic)">🔓 Tout débloquer</button>
             <button class="variant-group-del" data-skin-id="${esc(s.id)}" data-group-id="${esc(g.id)}" data-action="clear" style="color:var(--legendary)">🧹 Vider le groupe</button>
             <button class="variant-group-del" data-skin-id="${esc(s.id)}" data-group-id="${esc(g.id)}" data-action="del">🗑 Supprimer le groupe</button>
           </span>
@@ -752,6 +753,7 @@ function fnOpenModal(id) {
     document.querySelectorAll('.variant-group-del[data-action=del]').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); fnDeleteVariantGroup(btn.dataset.skinId, btn.dataset.groupId); }));
     document.querySelectorAll('.variant-group-del[data-action=dup]').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); fnOpenDuplicateGroupModal(btn.dataset.skinId, btn.dataset.groupId); }));
     document.querySelectorAll('.variant-group-del[data-action=clear]').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); fnClearGroupVariants(btn.dataset.skinId, btn.dataset.groupId); }));
+    document.querySelectorAll('.variant-group-del[data-action=unlock]').forEach(btn => btn.addEventListener('click', e => { e.stopPropagation(); fnUnlockAllInGroup(btn.dataset.skinId, btn.dataset.groupId); }));
 
     // Glisser-déposer une variante d'un groupe à un autre
     document.querySelectorAll('.vp-thumb-wrap').forEach(wrap => {
@@ -826,6 +828,18 @@ function fnClearGroupVariants(skinId, groupId) {
   if(!confirm(`Supprimer les ${n} variante${n>1?'s':''} de "${group.name}" ? Le groupe restera, juste vidé.`)) return;
   group.variants.length = 0; // vide le tableau en place (garde la référence intacte pour le bucket "Sans groupe")
   saveData(db); showToast('Groupe vidé ✓'); fnOpenModal(skinId);
+}
+function fnUnlockAllInGroup(skinId, groupId) {
+  const db = loadData();
+  const skin = (db.items['skin']||[]).find(s=>s.id===skinId);
+  const group = skin && _variantBucket(skin, groupId);
+  if(!group) return;
+  const n = group.variants.length;
+  if(!n) return;
+  const alreadyAll = group.variants.every(v=>v.owned);
+  if(alreadyAll) { showToast('Déjà toutes possédées ✓'); return; }
+  group.variants.forEach(v=>{ v.owned=true; }); // mutation en place, marche aussi pour le bucket "Sans groupe"
+  saveData(db); showToast(`${n} variante${n>1?'s':''} débloquée${n>1?'s':''} ✓`); fnOpenModal(skinId);
 }
 function fnOpenDuplicateGroupModal(skinId, groupId) {
   const db = loadData();
